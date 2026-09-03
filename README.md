@@ -11,9 +11,14 @@ containers.
 - Start, stop, and restart controls.
 - Configurable Docker context.
 - On-demand refresh: Docker is queried only when the panel opens, after an
-  action, or when refresh is explicitly requested.
+  action, when an already-loaded context changes, or when refresh is explicitly
+  requested.
+- Serialized state-changing actions with state-aware controls and timeouts.
+- Last-known container state remains visible when Docker becomes unavailable;
+  controls stay disabled until a valid refresh succeeds.
 - Configurable link to Portainer, Dockge, a custom UI, or no UI.
-- Mouse and keyboard navigation.
+- Explicit mouse controls for state-changing actions; typing while the panel
+  has focus cannot start, stop, or restart a container.
 
 ## Requirements
 
@@ -24,14 +29,6 @@ containers.
   Sudoless Docker security wizard. The wizard clearly warns that membership in
   the `docker` group is equivalent to passwordless root and requires a reboot.
 
-## Keyboard shortcuts
-
-- `j` / `k` or arrows: move between containers.
-- `enter` / `space` / `s`: start or stop the selected container.
-- `r`: refresh.
-- `o`: open the configured container UI.
-- `esc`: close.
-
 ## Install
 
 Place this directory under `~/.config/omarchy/plugins/` and enable it:
@@ -39,3 +36,14 @@ Place this directory under `~/.config/omarchy/plugins/` and enable it:
 ```bash
 omarchy plugin enable juan.docker --section right
 ```
+
+## Development checks
+
+```bash
+./test                       # schema, QML lint, and unit tests
+./test-integration default   # read-only check against a real Docker context
+```
+
+The integration check requests only the six fields displayed by the widget
+and verifies that the container ID set is unchanged before and after the run.
+It never starts, stops, restarts, creates, or removes a container.

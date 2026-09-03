@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -euo pipefail
+
+context="${1:-default}"
+format='{"ID":{{json .ID}},"Names":{{json .Names}},"Image":{{json .Image}},"State":{{json .State}},"Status":{{json .Status}},"Ports":{{json .Ports}}}'
+
+if ! command -v docker >/dev/null; then
+  echo "SKIP: Docker CLI is not installed"
+  exit 0
+fi
+
+before="$(docker --context "$context" ps -aq | sort)"
+listing="$(docker --context "$context" ps -a --no-trunc --format "$format")"
+
+printf '%s\n' "$listing" | jq -e -s '
+  all(.[];
+    (keys | sort) == ["ID", "Image", "Names", "Ports", "State", "Status"]
+    and (.ID | type == "string" and length > 0)
+    and (.Names | type == "string" and length > 0)
+    and (.State | type == "string" and length > 0)
+  )
+' >/dev/null
+
+if docker --context omarchy-widget-deliberately-missing ps >/dev/null 2>&1; then
+  echo "FAIL: a deliberately missing Docker context unexpectedly succeeded" >&2
+  exit 1
+fi
+
+after="$(docker --context "$context" ps -aq | sort)"
+if [[ "$before" != "$after" ]]; then
+  echo "FAIL: container IDs changed during the read-only integration test" >&2
+  exit 1
+fi
+
+count="$(printf '%s\n' "$listing" | sed '/^$/d' | wc -l)"
+echo "Docker integration checks passed: $count containers, no mutations"

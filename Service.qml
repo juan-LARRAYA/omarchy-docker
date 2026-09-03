@@ -1,125 +1,200 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "Model.js" as Model
 
 Item {
   id: root
 
   property var settings: ({})
+  property bool installationChecked: false
   property bool installed: false
   property bool accessible: false
   property bool refreshing: false
   property bool acting: false
+  property bool pendingRefresh: false
   property var containers: []
   property string lastError: ""
+  property string lastErrorKind: ""
   property string actionStatus: ""
+  property string activeActionId: ""
+  property double lastUpdatedMs: 0
 
   readonly property string dockerContext: String(setting("dockerContext", "default") || "default")
-  readonly property int runningCount: countState("running")
-  readonly property int stoppedCount: Math.max(0, containers.length - runningCount)
+  readonly property var containerCounts: Model.counts(containers)
+  readonly property int runningCount: containerCounts.running
+  readonly property int stoppedCount: containerCounts.stopped
+  readonly property int otherCount: containerCounts.other
 
   property string _listOutput: ""
   property string _listError: ""
+  property string _listContext: ""
   property int _listExitCode: -999
   property bool _listStdoutDone: false
   property bool _listStderrDone: false
+  property bool _listTimedOut: false
+  property bool _listPreserveActionError: false
+
+  property string _actionName: ""
+  property string _actionContainerName: ""
+  property string _actionContext: ""
   property string _actionError: ""
+  property int _actionExitCode: -999
+  property bool _actionStdoutDone: false
+  property bool _actionStderrDone: false
+  property bool _actionTimedOut: false
+
+  readonly property string listingFormat: "{\"ID\":{{json .ID}},\"Names\":{{json .Names}},\"Image\":{{json .Image}},\"State\":{{json .State}},\"Status\":{{json .Status}},\"Ports\":{{json .Ports}}}"
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
     return value === undefined || value === null ? fallback : value
   }
 
-  function countState(state) {
-    var count = 0
-    for (var i = 0; i < containers.length; i++)
-      if (String(containers[i].state || "").toLowerCase() === state) count++
-    return count
-  }
-
-  function refresh() {
-    if (!installed) {
-      if (!whichProcess.running) whichProcess.running = true
+  function refresh(preserveActionError) {
+    if (acting || listProcess.running || whichProcess.running) {
+      pendingRefresh = true
       return
     }
-    if (listProcess.running) return
+    if (!installationChecked) {
+      refreshing = true
+      whichProcess.running = true
+      return
+    }
+    if (!installed) {
+      refreshing = false
+      accessible = false
+      lastErrorKind = "missing"
+      lastError = "Docker CLI is not installed or is not on PATH."
+      return
+    }
+
+    pendingRefresh = false
     refreshing = true
     _listOutput = ""
     _listError = ""
+    _listContext = dockerContext
     _listExitCode = -999
     _listStdoutDone = false
     _listStderrDone = false
+    _listTimedOut = false
+    _listPreserveActionError = preserveActionError === true
     listProcess.command = [
-      "docker", "--context", dockerContext, "ps", "-a", "--no-trunc",
-      "--format", "{{json .}}"
+      "docker", "--context", _listContext, "ps", "-a", "--no-trunc",
+      "--format", listingFormat
     ]
     listProcess.running = true
+    listWatchdog.restart()
   }
 
   function finishListing() {
     if (_listExitCode === -999 || !_listStdoutDone || !_listStderrDone) return
+    listWatchdog.stop()
     refreshing = false
-    accessible = _listExitCode === 0
-    if (_listExitCode === 0) {
-      lastError = ""
-      parseListing(_listOutput)
-    } else {
-      containers = []
-      lastError = _listError || "Cannot connect to the Docker daemon."
+
+    var contextChanged = dockerContext !== _listContext
+    if (_listTimedOut) {
+      accessible = false
+      lastErrorKind = "timeout"
+      lastError = "Docker did not respond within 8 seconds."
+    } else if (_listExitCode === 0 && !contextChanged) {
+      var parsed = Model.parseListing(_listOutput)
+      if (parsed.ok) {
+        accessible = true
+        containers = parsed.containers
+        if (!_listPreserveActionError) {
+          lastError = ""
+          lastErrorKind = ""
+        }
+        lastUpdatedMs = Date.now()
+      } else {
+        accessible = false
+        lastError = parsed.error
+        lastErrorKind = "parse"
+      }
+    } else if (_listExitCode !== 0 && !contextChanged) {
+      accessible = false
+      lastErrorKind = _listError.toLowerCase().indexOf("permission denied") !== -1 ? "permission" : "connection"
+      lastError = Model.friendlyError(_listError, "Cannot connect to the Docker daemon.", _listContext)
     }
+
+    var rerun = pendingRefresh || contextChanged
+    pendingRefresh = false
+    if (rerun) Qt.callLater(root.refresh)
   }
 
-  function parseListing(output) {
-    var result = []
-    var lines = String(output || "").trim().split("\n")
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim()
-      if (line === "") continue
-      try {
-        var raw = JSON.parse(line)
-        result.push({
-          id: String(raw.ID || ""),
-          name: String(raw.Names || raw.Name || raw.ID || "Unknown"),
-          image: String(raw.Image || ""),
-          state: String(raw.State || "unknown").toLowerCase(),
-          status: String(raw.Status || ""),
-          ports: String(raw.Ports || "")
-        })
-      } catch (e) {
-        lastError = "Docker returned an unreadable container listing."
-      }
-    }
-    result.sort(function(a, b) {
-      if (a.state === "running" && b.state !== "running") return -1
-      if (a.state !== "running" && b.state === "running") return 1
-      return a.name.localeCompare(b.name)
-    })
-    containers = result
+  function supportsAction(action, container) {
+    return container && container.id && Model.actionAllowed(action, container.state)
+  }
+
+  function actionAllowed(action, container) {
+    return accessible && !acting && supportsAction(action, container)
   }
 
   function runAction(action, container) {
-    if (acting || !container || !container.id) return
+    if (!actionAllowed(action, container)) return false
     acting = true
+    pendingRefresh = false
+    activeActionId = container.id
+    _actionName = action
+    _actionContainerName = container.name
+    _actionContext = dockerContext
     actionStatus = action.charAt(0).toUpperCase() + action.slice(1) + " " + container.name + "…"
     lastError = ""
+    lastErrorKind = ""
     _actionError = ""
-    actionProcess.command = ["docker", "--context", dockerContext, action, container.id]
+    _actionExitCode = -999
+    _actionStdoutDone = false
+    _actionStderrDone = false
+    _actionTimedOut = false
+    actionProcess.command = ["docker", "--context", _actionContext, action, container.id]
     actionProcess.running = true
+    actionWatchdog.restart()
+    return true
   }
 
-  function start(container) { runAction("start", container) }
-  function stop(container) { runAction("stop", container) }
-  function restart(container) { runAction("restart", container) }
+  function finishAction() {
+    if (_actionExitCode === -999 || !_actionStdoutDone || !_actionStderrDone) return
+    actionWatchdog.stop()
+    acting = false
+    activeActionId = ""
+
+    var actionFailed = _actionTimedOut || _actionExitCode !== 0
+    if (_actionTimedOut) {
+      actionStatus = ""
+      lastErrorKind = "action"
+      lastError = "Docker took too long while trying to " + _actionName + " " + _actionContainerName + "."
+    } else if (_actionExitCode === 0) {
+      var past = _actionName === "stop" ? "Stopped" : (_actionName === "start" ? "Started" : "Restarted")
+      actionStatus = past + " " + _actionContainerName
+      actionStatusClear.restart()
+    } else {
+      actionStatus = ""
+      lastErrorKind = "action"
+      lastError = Model.friendlyError(_actionError, "Docker action failed.", _actionContext)
+    }
+
+    pendingRefresh = false
+    Qt.callLater(function() { root.refresh(actionFailed) })
+  }
+
+  function start(container) { return runAction("start", container) }
+  function stop(container) { return runAction("stop", container) }
+  function restart(container) { return runAction("restart", container) }
 
   Process {
     id: whichProcess
     command: ["which", "docker"]
     stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
     onExited: function(exitCode) {
+      root.installationChecked = true
       root.installed = exitCode === 0
-      if (root.installed) root.refresh()
+      if (root.installed) Qt.callLater(root.refresh)
       else {
+        root.refreshing = false
         root.accessible = false
+        root.lastErrorKind = "missing"
         root.lastError = "Docker CLI is not installed or is not on PATH."
       }
     }
@@ -151,25 +226,59 @@ Item {
 
   Process {
     id: actionProcess
-    stdout: StdioCollector { waitForEnd: true }
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root._actionStdoutDone = true
+        root.finishAction()
+      }
+    }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root._actionError = String(text || "").trim()
+      onStreamFinished: {
+        root._actionError = String(text || "").trim()
+        root._actionStderrDone = true
+        root.finishAction()
+      }
     }
     onExited: function(exitCode) {
-      root.acting = false
-      root.actionStatus = ""
-      if (exitCode !== 0) root.lastError = root._actionError || "Docker action failed."
-      actionRefresh.restart()
+      root._actionExitCode = exitCode
+      root.finishAction()
     }
   }
 
   Timer {
-    id: actionRefresh
-    interval: 600
+    id: listWatchdog
+    interval: 8000
     repeat: false
-    onTriggered: root.refresh()
+    onTriggered: {
+      root._listTimedOut = true
+      if (listProcess.running) listProcess.running = false
+    }
   }
 
-  onDockerContextChanged: refresh()
+  Timer {
+    id: actionWatchdog
+    interval: 45000
+    repeat: false
+    onTriggered: {
+      root._actionTimedOut = true
+      if (actionProcess.running) actionProcess.running = false
+    }
+  }
+
+  Timer {
+    id: actionStatusClear
+    interval: 2500
+    repeat: false
+    onTriggered: root.actionStatus = ""
+  }
+
+  onDockerContextChanged: {
+    if (!installationChecked && lastUpdatedMs <= 0 && !refreshing && !acting) return
+    accessible = false
+    lastError = ""
+    lastErrorKind = ""
+    refresh()
+  }
 }

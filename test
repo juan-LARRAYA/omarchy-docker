@@ -6,9 +6,26 @@ PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 jq empty "$PLUGIN_DIR/manifest.json"
 omarchy plugin validate "$PLUGIN_DIR"
-qmllint -I /usr/share/omarchy/shell \
+QMLLINT=/usr/lib/qt6/bin/qmllint
+[[ -x "$QMLLINT" ]] || QMLLINT=qmllint
+"$QMLLINT" --silent "$PLUGIN_DIR/Model.js"
+"$QMLLINT" --silent -I /usr/share/omarchy/shell \
   "$PLUGIN_DIR/DockerIcon.qml" \
   "$PLUGIN_DIR/Service.qml" \
   "$PLUGIN_DIR/Panel.qml"
+
+if rg -q 'onActivateRequested|onDeleteRequested|onTextKey' "$PLUGIN_DIR/Panel.qml"; then
+  echo "FAIL: container actions must not be reachable from single-key panel handlers" >&2
+  exit 1
+fi
+
+rg -q 'onDockerContextChanged' "$PLUGIN_DIR/Service.qml" || {
+  echo "FAIL: Docker context changes must invalidate stale container actions" >&2
+  exit 1
+}
+
+QMLTESTRUNNER=/usr/lib/qt6/bin/qmltestrunner
+[[ -x "$QMLTESTRUNNER" ]] || QMLTESTRUNNER=qmltestrunner
+env -u QT_QPA_PLATFORMTHEME "$QMLTESTRUNNER" -platform offscreen -input "$PLUGIN_DIR/tests"
 
 echo "Docker widget checks passed"

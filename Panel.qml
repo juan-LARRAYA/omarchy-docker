@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 Panel {
   id: root
@@ -24,13 +25,8 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
-  readonly property string selectedUi: String(settings.containerUi || "Portainer")
-  readonly property string uiUrl: {
-    if (selectedUi === "Portainer") return String(settings.portainerUrl || "https://localhost:9443")
-    if (selectedUi === "Dockge") return String(settings.dockgeUrl || "http://localhost:5001")
-    if (selectedUi === "Custom") return String(settings.customUiUrl || "")
-    return ""
-  }
+  readonly property string selectedUi: Model.normalizeUi(settings.containerUi)
+  readonly property string uiUrl: Model.uiUrl(selectedUi, settings)
   readonly property var selectedContainer: service.containers.length > 0
     ? service.containers[Math.max(0, Math.min(containerIndex, service.containers.length - 1))]
     : null
@@ -44,10 +40,26 @@ Panel {
     containerIndex = (containerIndex + (dy > 0 ? 1 : -1) + service.containers.length) % service.containers.length
   }
 
-  function toggleSelected() {
-    if (!selectedContainer) return
-    if (selectedContainer.state === "running") service.stop(selectedContainer)
-    else service.start(selectedContainer)
+  function heroMeta() {
+    if (service.refreshing && service.containers.length === 0) return "Loading containers…"
+    if (!service.accessible && service.containers.length > 0) return "Last known container state"
+    if (!service.accessible) return "Container engine unavailable"
+    var parts = [service.runningCount + " running", service.stoppedCount + " stopped"]
+    if (service.otherCount > 0) parts.push(service.otherCount + " other")
+    return parts.join(" · ")
+  }
+
+  function persistSetting(name, value) {
+    if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function") return false
+    var entry = { id: root.moduleName }
+    for (var key in settings) if (key !== "id") entry[key] = settings[key]
+    entry[name] = value
+    root.bar.shell.updateEntryInline(root.moduleName, entry)
+    return true
+  }
+
+  function cycleUi() {
+    persistSetting("containerUi", Model.nextUi(selectedUi))
   }
 
   function openUi() {
@@ -78,11 +90,19 @@ Panel {
 
   IpcHandler {
     target: root.ipcTarget
-    function open() { root.open() }
-    function close() { root.close() }
-    function toggle() { root.toggle() }
-    function refresh() { service.refresh(); return "ok" }
-    function status() { return service.runningCount + " running" }
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function show(): void { root.open() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.toggle() }
+    function refresh(): string { service.refresh(); return "ok" }
+    function status(): string {
+      if (!service.installationChecked) return "Not refreshed"
+      if (!service.installed) return "Docker CLI unavailable"
+      if (service.refreshing) return "Refreshing"
+      if (!service.accessible) return "Docker unavailable"
+      return service.runningCount + " running · " + service.containers.length + " total"
+    }
   }
 
   WidgetButton {
@@ -117,14 +137,8 @@ Panel {
         if (!root.cursorActive) { root.cursorActive = true; return }
         root.moveCursor(dx, dy)
       }
-      onActivateRequested: if (root.cursorActive) root.toggleSelected()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
-      onTextKey: function(t) {
-        if (t === "r" || t === "R") service.refresh()
-        else if (t === "o" || t === "O") root.openUi()
-        else if ((t === "s" || t === "S") && root.selectedContainer) root.toggleSelected()
-      }
 
       Flickable {
         anchors.fill: parent
@@ -144,9 +158,7 @@ Panel {
           PanelHero {
             width: parent.width
             title: "Docker"
-            meta: service.accessible
-              ? service.runningCount + " running · " + service.stoppedCount + " stopped"
-              : "Container engine unavailable"
+            meta: root.heroMeta()
             foreground: root.foreground
             fontFamily: root.fontFamily
             iconOpacity: service.accessible ? 1.0 : 0.5
@@ -181,7 +193,7 @@ Panel {
           }
 
           CursorSurface {
-            visible: service.installed && !service.accessible
+            visible: service.installed && !service.accessible && service.lastErrorKind === "permission"
             width: parent.width
             implicitHeight: accessContent.implicitHeight + Style.space(20)
             foreground: root.foreground
@@ -266,8 +278,55 @@ Panel {
           }
 
           PanelSeparator {
-            visible: root.uiUrl !== ""
             foreground: root.foreground
+          }
+
+          CursorSurface {
+            width: parent.width
+            implicitHeight: Style.space(44)
+            foreground: root.foreground
+            fill: root.hoverFill
+            radius: Style.cornerRadius
+
+            RowLayout {
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(12)
+              anchors.rightMargin: Style.space(12)
+              spacing: Style.space(10)
+
+              Text {
+                text: "󰒓"
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.icon
+              }
+              Text {
+                Layout.fillWidth: true
+                text: "Container UI"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+              }
+              Text {
+                text: root.selectedUi
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+              Text {
+                text: "󰒭"
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.icon
+              }
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.cycleUi()
+            }
           }
 
           CursorSurface {
@@ -321,6 +380,10 @@ Panel {
     property var container: null
     property int rowIndex: 0
     readonly property bool running: container && container.state === "running"
+    readonly property bool actionBusy: container && service.acting && service.activeActionId === container.id
+    readonly property bool canStart: service.supportsAction("start", container)
+    readonly property bool canStop: service.supportsAction("stop", container)
+    readonly property bool canRestart: service.supportsAction("restart", container)
 
     hasCursor: root.cursorActive && root.containerIndex === rowIndex
     current: running
@@ -349,7 +412,7 @@ Panel {
         width: Style.space(8)
         height: width
         radius: width / 2
-        color: row.running ? Color.accent : root.dim
+        color: row.running ? Color.accent : (row.container && row.container.state === "dead" ? root.urgent : root.dim)
       }
 
       Column {
@@ -378,25 +441,26 @@ Panel {
       }
 
       PanelActionButton {
-        iconText: row.running ? "󰓛" : "󰐊"
-        tooltipText: row.running ? "Stop" : "Start"
+        visible: row.canStart || row.canStop || row.actionBusy
+        iconText: row.actionBusy ? "󰑓" : (row.canStop ? "󰓛" : "󰐊")
+        tooltipText: row.canStop ? "Stop" : "Start"
         foreground: root.foreground
         fontFamily: root.fontFamily
-        enabled: !service.acting
+        enabled: service.accessible && !service.acting && (row.canStart || row.canStop)
         onClicked: {
           root.containerIndex = row.rowIndex
-          if (row.running) service.stop(row.container)
-          else service.start(row.container)
+          if (row.canStop) service.stop(row.container)
+          else if (row.canStart) service.start(row.container)
         }
       }
 
       PanelActionButton {
-        visible: row.running
+        visible: row.canRestart && !row.actionBusy
         iconText: "󰜉"
         tooltipText: "Restart"
         foreground: root.foreground
         fontFamily: root.fontFamily
-        enabled: !service.acting
+        enabled: service.accessible && !service.acting && row.canRestart
         onClicked: {
           root.containerIndex = row.rowIndex
           service.restart(row.container)
