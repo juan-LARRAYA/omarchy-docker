@@ -12,6 +12,9 @@ Panel {
   ipcTarget: "juan.docker"
   manageIpc: false
 
+  implicitWidth: Style.space(76)
+  implicitHeight: bar ? bar.barSize : Style.bar.sizeHorizontal
+
   property int containerIndex: 0
   property bool cursorActive: false
 
@@ -82,22 +85,15 @@ Panel {
     function status() { return service.runningCount + " running" }
   }
 
-  BarIconButton {
+  WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    iconComponent: Component {
-      Item {
-        DockerIcon {
-          anchors.centerIn: parent
-          iconSize: Style.space(16)
-          color: "#2496ed"
-          badgeColor: root.urgent
-          runningCount: service.runningCount
-          warning: service.lastError !== ""
-        }
-      }
-    }
+    text: "󰡨  Docker"
+    foreground: "#2496ed"
+    fontSize: Style.font.caption
+    horizontalMargin: 7
+    tooltipText: "Docker containers"
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.MiddleButton) service.refresh()
       else root.toggle()
