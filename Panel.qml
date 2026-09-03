@@ -90,8 +90,8 @@ Panel {
       Item {
         DockerIcon {
           anchors.centerIn: parent
-          iconSize: Style.space(13)
-          color: root.barForeground
+          iconSize: Style.space(16)
+          color: "#2496ed"
           badgeColor: root.urgent
           runningCount: service.runningCount
           warning: service.lastError !== ""

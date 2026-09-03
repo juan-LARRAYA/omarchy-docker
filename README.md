@@ -9,7 +9,9 @@ containers.
 - Running and stopped container counts.
 - List of all containers, with image and status.
 - Start, stop, and restart controls.
-- Configurable Docker context and refresh interval.
+- Configurable Docker context.
+- On-demand refresh: Docker is queried only when the panel opens, after an
+  action, or when refresh is explicitly requested.
 - Configurable link to Portainer, Dockge, a custom UI, or no UI.
 - Mouse and keyboard navigation.
 

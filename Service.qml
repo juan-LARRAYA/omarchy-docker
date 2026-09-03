@@ -15,7 +15,6 @@ Item {
   property string actionStatus: ""
 
   readonly property string dockerContext: String(setting("dockerContext", "default") || "default")
-  readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 10, 5, 3600)
   readonly property int runningCount: countState("running")
   readonly property int stoppedCount: Math.max(0, containers.length - runningCount)
 
@@ -29,12 +28,6 @@ Item {
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
     return value === undefined || value === null ? fallback : value
-  }
-
-  function intSetting(name, fallback, min, max) {
-    var n = parseInt(String(setting(name, fallback)), 10)
-    if (!isFinite(n)) n = fallback
-    return Math.max(min, Math.min(max, n))
   }
 
   function countState(state) {
@@ -169,14 +162,6 @@ Item {
       if (exitCode !== 0) root.lastError = root._actionError || "Docker action failed."
       actionRefresh.restart()
     }
-  }
-
-  Timer {
-    interval: root.refreshIntervalSec * 1000
-    running: true
-    repeat: true
-    triggeredOnStart: true
-    onTriggered: root.refresh()
   }
 
   Timer {

@@ -5,7 +5,7 @@ Item {
   id: root
 
   property real iconSize: Style.font.icon
-  property color color: Color.foreground
+  property color color: "#2496ed"
   property color badgeColor: Color.urgent
   property int runningCount: 0
   property bool warning: false

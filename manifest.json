@@ -24,7 +24,6 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "refreshIntervalSec": 10,
       "dockerContext": "default",
       "containerUi": "Portainer",
       "portainerUrl": "https://localhost:9443",
@@ -32,15 +31,6 @@
       "customUiUrl": ""
     },
     "schema": [
-      {
-        "key": "refreshIntervalSec",
-        "type": "integer",
-        "label": "Refresh interval (seconds)",
-        "min": 5,
-        "max": 3600,
-        "step": 5,
-        "defaultValue": 10
-      },
       {
         "key": "dockerContext",
         "type": "string",
