@@ -8,8 +8,11 @@ containers.
 - Docker logo and daemon status in the bar.
 - Running and stopped container counts.
 - List of all containers, with image and status.
-- Click a container row to open every TCP port it publishes to the host;
-  duplicate IPv4/IPv6 publications are opened only once.
+- Open the first published TCP service of a running container from its browser
+  button. Specific bind addresses are preserved; wildcard bindings are offered
+  automatically only for the local `default` context. Named local contexts can
+  set an explicit published-service host; named remote contexts default to no
+  wildcard links.
 - Start, stop, and restart controls.
 - Configurable Docker context.
 - On-demand refresh: Docker is queried only when the panel opens, after an
@@ -52,6 +55,8 @@ and verifies that the container ID set is unchanged before and after the run.
 It never starts, stops, restarts, creates, or removes a container.
 
 Docker does not expose application-protocol metadata in `docker ps`. Published
-container ports 443, 8443, and 9443 are opened with HTTPS; other published TCP
-ports are opened with HTTP. UDP and ports that are only exposed inside the
-container are ignored.
+container ports 443, 8443, and 9443 are inferred as HTTPS; other published TCP
+ports are inferred as HTTP. Only the first candidate is opened, preventing one
+click from launching an unbounded number of browser tabs. UDP, ranges, stopped
+containers, internal-only ports, and wildcard bindings on named contexts are
+not offered automatically.

@@ -107,26 +107,61 @@ function publishedTcpPorts(value) {
     if (!/\/tcp$/i.test(entry) || entry.indexOf("->") === -1) continue
     var sides = entry.split("->")
     if (sides.length !== 2) continue
-    var hostMatch = sides[0].trim().match(/:(\d+)$/)
+    var hostMatch = sides[0].trim().match(/^(.*):(\d+)$/)
     var containerMatch = sides[1].trim().match(/^(\d+)\/tcp$/i)
     if (!hostMatch || !containerMatch) continue
-    var hostPort = Number(hostMatch[1])
+    var host = hostMatch[1].trim()
+    if (host[0] === "[" && host[host.length - 1] === "]") host = host.substring(1, host.length - 1)
+    var hostPort = Number(hostMatch[2])
     var containerPort = Number(containerMatch[1])
     if (hostPort < 1 || hostPort > 65535 || containerPort < 1 || containerPort > 65535) continue
-    if (seen[hostPort]) continue
-    seen[hostPort] = true
-    result.push({ hostPort: hostPort, containerPort: containerPort })
+    var key = host + ":" + hostPort
+    if (seen[key]) continue
+    seen[key] = true
+    result.push({ host: host, hostPort: hostPort, containerPort: containerPort })
   }
-  result.sort(function(left, right) { return left.hostPort - right.hostPort })
+  result.sort(function(left, right) {
+    var portDifference = left.hostPort - right.hostPort
+    return portDifference !== 0 ? portDifference : left.host.localeCompare(right.host)
+  })
   return result
 }
 
-function serviceUrls(value) {
+function normalizedUrlHost(value) {
+  var host = String(value || "").trim()
+  if (host === "") return ""
+  if (host[0] === "[" && host[host.length - 1] === "]") host = host.substring(1, host.length - 1)
+  if (host === "localhost") return host
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    var octets = host.split(".")
+    for (var i = 0; i < octets.length; i++) if (Number(octets[i]) > 255) return ""
+    return host
+  }
+  if (/^[0-9a-f:]+$/i.test(host) && host.indexOf(":") !== -1) return "[" + host + "]"
+  if (/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(host))
+    return host
+  return ""
+}
+
+function serviceUrls(value, wildcardHost) {
   var securePorts = { 443: true, 8443: true, 9443: true }
-  return publishedTcpPorts(value).map(function(port) {
+  var fallback = String(wildcardHost || "").trim()
+  var result = []
+  var seen = {}
+  publishedTcpPorts(value).forEach(function(port) {
+    var host = port.host
+    if (host === "0.0.0.0" || host === "::" || host === "") host = fallback
+    if (host === "") return
+    var urlHost = normalizedUrlHost(host)
+    if (urlHost === "") return
     var scheme = securePorts[port.containerPort] ? "https" : "http"
-    return scheme + "://localhost:" + port.hostPort
+    var url = scheme + "://" + urlHost + ":" + port.hostPort
+    if (!seen[url]) {
+      seen[url] = true
+      result.push(url)
+    }
   })
+  return result
 }
 
 function friendlyError(stderrText, fallback, context) {

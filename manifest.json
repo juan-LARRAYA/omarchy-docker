@@ -26,6 +26,7 @@
     "defaults": {
       "dockerContext": "default",
       "containerUi": "Portainer",
+      "publishedWildcardHost": "",
       "portainerUrl": "https://localhost:9443",
       "dockgeUrl": "http://localhost:5001",
       "customUiUrl": ""
@@ -37,6 +38,13 @@
         "label": "Docker context",
         "defaultValue": "default",
         "description": "Docker CLI context to monitor, such as default or rootless."
+      },
+      {
+        "key": "publishedWildcardHost",
+        "type": "string",
+        "label": "Published service host",
+        "defaultValue": "",
+        "description": "Host used for wildcard port bindings in named Docker contexts; leave blank to disable those links."
       },
       {
         "key": "containerUi",

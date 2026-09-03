@@ -123,14 +123,34 @@ TestCase {
       "127.0.0.1:5353->5353/udp"
     ].join(", ")
     var published = Model.publishedTcpPorts(ports)
-    compare(published.length, 2)
-    compare(published[0].hostPort, 8080)
-    compare(published[0].containerPort, 80)
-    compare(published[1].hostPort, 9443)
-    compare(Model.serviceUrls(ports), ["http://localhost:8080", "https://localhost:9443"])
+    compare(published.length, 3)
+    compare(published.filter(function(port) { return port.hostPort === 8080 }).length, 2)
+    compare(published.filter(function(port) { return port.hostPort === 9443 }).length, 1)
+    compare(Model.serviceUrls(ports, "localhost"), ["http://localhost:8080", "https://127.0.0.1:9443"])
   }
 
   function test_ignoresInvalidAndUnpublishedPorts() {
-    compare(Model.serviceUrls("8123/tcp, nonsense, 0.0.0.0:70000->80/tcp"), [])
+    compare(Model.serviceUrls("8123/tcp, nonsense, 0.0.0.0:70000->80/tcp", "localhost"), [])
+    compare(Model.serviceUrls("bad/path:8080->80/tcp", "localhost"), [])
+    compare(Model.serviceUrls("999.1.1.1:8080->80/tcp", "localhost"), [])
+    compare(Model.serviceUrls("0.0.0.0:8080->80/tcp", "bad/path"), [])
+  }
+
+  function test_preservesSpecificHostsAndRequiresWildcardFallback() {
+    var ports = [
+      "192.168.1.20:8080->80/tcp",
+      "[2001:db8::20]:8443->8443/tcp",
+      "0.0.0.0:9000->9000/tcp",
+      "[::]:9000->9000/tcp"
+    ].join(", ")
+    compare(Model.serviceUrls(ports, ""), [
+      "http://192.168.1.20:8080",
+      "https://[2001:db8::20]:8443"
+    ])
+    compare(Model.serviceUrls(ports, "docker.example"), [
+      "http://192.168.1.20:8080",
+      "https://[2001:db8::20]:8443",
+      "http://docker.example:9000"
+    ])
   }
 }

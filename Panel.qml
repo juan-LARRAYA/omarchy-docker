@@ -27,6 +27,8 @@ Panel {
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
   readonly property string selectedUi: Model.normalizeUi(settings.containerUi)
   readonly property string uiUrl: Model.uiUrl(selectedUi, settings)
+  readonly property string publishedWildcardHost:
+    String(settings.publishedWildcardHost || (service.dockerContext === "default" ? "localhost" : ""))
   readonly property var selectedContainer: service.containers.length > 0
     ? service.containers[Math.max(0, Math.min(containerIndex, service.containers.length - 1))]
     : null
@@ -45,14 +47,16 @@ Panel {
     Qt.callLater(function() {
       var row = containerRepeater.itemAt(containerIndex)
       if (!row || !containerFlickable.visible) return
+      var point = row.mapToItem(containerFlickable.contentItem, 0, 0)
+      var margin = Style.space(6)
+      var top = point.y
+      var bottom = top + row.height
       var viewportTop = containerFlickable.contentY
       var viewportBottom = viewportTop + containerFlickable.height
-      if (row.y < viewportTop) containerFlickable.contentY = row.y
-      else if (row.y + row.height > viewportBottom)
-        containerFlickable.contentY = Math.min(
-          Math.max(0, containerFlickable.contentHeight - containerFlickable.height),
-          row.y + row.height - containerFlickable.height
-        )
+      var maxY = Math.max(0, containerFlickable.contentHeight - containerFlickable.height)
+      if (top < viewportTop + margin) containerFlickable.contentY = Math.max(0, top - margin)
+      else if (bottom > viewportBottom - margin)
+        containerFlickable.contentY = Math.min(maxY, bottom + margin - containerFlickable.height)
     })
   }
 
@@ -85,9 +89,10 @@ Panel {
   }
 
   function openContainerUrls(container) {
-    var urls = Model.serviceUrls(container ? container.ports : "")
+    if (!container || container.state !== "running") return
+    var urls = Model.serviceUrls(container.ports, publishedWildcardHost)
     if (urls.length === 0) return
-    for (var i = 0; i < urls.length; i++) Quickshell.execDetached(["xdg-open", urls[i]])
+    Quickshell.execDetached(["xdg-open", urls[0]])
     root.close()
   }
 
@@ -101,6 +106,8 @@ Panel {
 
   onOpenedChanged: if (opened) {
     cursorActive = false
+    containerIndex = 0
+    if (containerFlickable) containerFlickable.contentY = 0
     service.refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -418,7 +425,9 @@ Panel {
     readonly property bool canStart: service.supportsAction("start", container)
     readonly property bool canStop: service.supportsAction("stop", container)
     readonly property bool canRestart: service.supportsAction("restart", container)
-    readonly property var serviceUrls: Model.serviceUrls(container ? container.ports : "")
+    readonly property var serviceUrls: running
+      ? Model.serviceUrls(container ? container.ports : "", root.publishedWildcardHost)
+      : []
 
     hasCursor: root.cursorActive && root.containerIndex === rowIndex
     current: running
@@ -431,9 +440,7 @@ Panel {
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
-      cursorShape: row.serviceUrls.length > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
       onEntered: root.containerIndex = row.rowIndex
-      onClicked: root.openContainerUrls(row.container)
     }
 
     RowLayout {
@@ -477,12 +484,13 @@ Panel {
         }
       }
 
-      Text {
+      PanelActionButton {
         visible: row.serviceUrls.length > 0
-        text: row.serviceUrls.length > 1 ? "󰖟 " + row.serviceUrls.length : "󰖟"
-        color: root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.icon
+        iconText: "󰖟"
+        tooltipText: row.serviceUrls.length > 1 ? "Open first published service" : "Open published service"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        onClicked: root.openContainerUrls(row.container)
       }
 
       PanelActionButton {
