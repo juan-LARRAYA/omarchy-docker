@@ -91,7 +91,7 @@ Panel {
         DockerIcon {
           anchors.centerIn: parent
           iconSize: Style.space(13)
-          color: service.accessible ? root.barForeground : Qt.darker(root.barForeground, 1.55)
+          color: root.barForeground
           badgeColor: root.urgent
           runningCount: service.runningCount
           warning: service.lastError !== ""
