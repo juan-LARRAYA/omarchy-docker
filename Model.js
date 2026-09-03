@@ -98,6 +98,37 @@ function actionAllowed(action, state) {
   return false
 }
 
+function publishedTcpPorts(value) {
+  var result = []
+  var seen = {}
+  var parts = String(value || "").split(",")
+  for (var i = 0; i < parts.length; i++) {
+    var entry = parts[i].trim()
+    if (!/\/tcp$/i.test(entry) || entry.indexOf("->") === -1) continue
+    var sides = entry.split("->")
+    if (sides.length !== 2) continue
+    var hostMatch = sides[0].trim().match(/:(\d+)$/)
+    var containerMatch = sides[1].trim().match(/^(\d+)\/tcp$/i)
+    if (!hostMatch || !containerMatch) continue
+    var hostPort = Number(hostMatch[1])
+    var containerPort = Number(containerMatch[1])
+    if (hostPort < 1 || hostPort > 65535 || containerPort < 1 || containerPort > 65535) continue
+    if (seen[hostPort]) continue
+    seen[hostPort] = true
+    result.push({ hostPort: hostPort, containerPort: containerPort })
+  }
+  result.sort(function(left, right) { return left.hostPort - right.hostPort })
+  return result
+}
+
+function serviceUrls(value) {
+  var securePorts = { 443: true, 8443: true, 9443: true }
+  return publishedTcpPorts(value).map(function(port) {
+    var scheme = securePorts[port.containerPort] ? "https" : "http"
+    return scheme + "://localhost:" + port.hostPort
+  })
+}
+
 function friendlyError(stderrText, fallback, context) {
   var raw = String(stderrText || "").replace(/\s+/g, " ").trim()
   var lower = raw.toLowerCase()

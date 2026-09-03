@@ -113,4 +113,24 @@ TestCase {
     compare(Model.uiUrl("Custom", { customUiUrl: "https://containers.example" }), "https://containers.example")
     compare(Model.uiUrl("None", {}), "")
   }
+
+  function test_publishedServiceUrls() {
+    var ports = [
+      "8000/tcp",
+      "0.0.0.0:8080->80/tcp",
+      "[::]:8080->80/tcp",
+      "127.0.0.1:9443->9443/tcp",
+      "127.0.0.1:5353->5353/udp"
+    ].join(", ")
+    var published = Model.publishedTcpPorts(ports)
+    compare(published.length, 2)
+    compare(published[0].hostPort, 8080)
+    compare(published[0].containerPort, 80)
+    compare(published[1].hostPort, 9443)
+    compare(Model.serviceUrls(ports), ["http://localhost:8080", "https://localhost:9443"])
+  }
+
+  function test_ignoresInvalidAndUnpublishedPorts() {
+    compare(Model.serviceUrls("8123/tcp, nonsense, 0.0.0.0:70000->80/tcp"), [])
+  }
 }

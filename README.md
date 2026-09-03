@@ -8,6 +8,8 @@ containers.
 - Docker logo and daemon status in the bar.
 - Running and stopped container counts.
 - List of all containers, with image and status.
+- Click a container row to open every TCP port it publishes to the host;
+  duplicate IPv4/IPv6 publications are opened only once.
 - Start, stop, and restart controls.
 - Configurable Docker context.
 - On-demand refresh: Docker is queried only when the panel opens, after an
@@ -47,3 +49,8 @@ omarchy plugin enable juan.docker --section right
 The integration check requests only the six fields displayed by the widget
 and verifies that the container ID set is unchanged before and after the run.
 It never starts, stops, restarts, creates, or removes a container.
+
+Docker does not expose application-protocol metadata in `docker ps`. Published
+container ports 443, 8443, and 9443 are opened with HTTPS; other published TCP
+ports are opened with HTTP. UDP and ports that are only exposed inside the
+container are ignored.

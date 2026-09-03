@@ -38,6 +38,22 @@ Panel {
   function moveCursor(dx, dy) {
     if (service.containers.length === 0 || dy === 0) return
     containerIndex = (containerIndex + (dy > 0 ? 1 : -1) + service.containers.length) % service.containers.length
+    ensureCursorVisible()
+  }
+
+  function ensureCursorVisible() {
+    Qt.callLater(function() {
+      var row = containerRepeater.itemAt(containerIndex)
+      if (!row || !containerFlickable.visible) return
+      var viewportTop = containerFlickable.contentY
+      var viewportBottom = viewportTop + containerFlickable.height
+      if (row.y < viewportTop) containerFlickable.contentY = row.y
+      else if (row.y + row.height > viewportBottom)
+        containerFlickable.contentY = Math.min(
+          Math.max(0, containerFlickable.contentHeight - containerFlickable.height),
+          row.y + row.height - containerFlickable.height
+        )
+    })
   }
 
   function heroMeta() {
@@ -65,6 +81,13 @@ Panel {
   function openUi() {
     if (uiUrl === "") return
     Quickshell.execDetached(["xdg-open", uiUrl])
+    root.close()
+  }
+
+  function openContainerUrls(container) {
+    var urls = Model.serviceUrls(container ? container.ports : "")
+    if (urls.length === 0) return
+    for (var i = 0; i < urls.length; i++) Quickshell.execDetached(["xdg-open", urls[i]])
     root.close()
   }
 
@@ -150,6 +173,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
       Flickable {
+        id: containerFlickable
         anchors.fill: parent
         contentWidth: width
         contentHeight: column.implicitHeight
@@ -274,6 +298,7 @@ Panel {
             spacing: Style.space(4)
 
             Repeater {
+              id: containerRepeater
               model: service.containers
 
               ContainerRow {
@@ -393,6 +418,7 @@ Panel {
     readonly property bool canStart: service.supportsAction("start", container)
     readonly property bool canStop: service.supportsAction("stop", container)
     readonly property bool canRestart: service.supportsAction("restart", container)
+    readonly property var serviceUrls: Model.serviceUrls(container ? container.ports : "")
 
     hasCursor: root.cursorActive && root.containerIndex === rowIndex
     current: running
@@ -405,7 +431,9 @@ Panel {
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
+      cursorShape: row.serviceUrls.length > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
       onEntered: root.containerIndex = row.rowIndex
+      onClicked: root.openContainerUrls(row.container)
     }
 
     RowLayout {
@@ -447,6 +475,14 @@ Panel {
           font.pixelSize: Style.font.caption
           elide: Text.ElideRight
         }
+      }
+
+      Text {
+        visible: row.serviceUrls.length > 0
+        text: row.serviceUrls.length > 1 ? "󰖟 " + row.serviceUrls.length : "󰖟"
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.icon
       }
 
       PanelActionButton {
