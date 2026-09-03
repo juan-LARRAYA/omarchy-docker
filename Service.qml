@@ -30,8 +30,6 @@ Item {
   property string _listError: ""
   property string _listContext: ""
   property int _listExitCode: -999
-  property bool _listStdoutDone: false
-  property bool _listStderrDone: false
   property bool _listTimedOut: false
   property bool _listPreserveActionError: false
 
@@ -40,8 +38,6 @@ Item {
   property string _actionContext: ""
   property string _actionError: ""
   property int _actionExitCode: -999
-  property bool _actionStdoutDone: false
-  property bool _actionStderrDone: false
   property bool _actionTimedOut: false
 
   readonly property string listingFormat: "{\"ID\":{{json .ID}},\"Names\":{{json .Names}},\"Image\":{{json .Image}},\"State\":{{json .State}},\"Status\":{{json .Status}},\"Ports\":{{json .Ports}}}"
@@ -75,8 +71,6 @@ Item {
     _listError = ""
     _listContext = dockerContext
     _listExitCode = -999
-    _listStdoutDone = false
-    _listStderrDone = false
     _listTimedOut = false
     _listPreserveActionError = preserveActionError === true
     listProcess.command = [
@@ -88,7 +82,7 @@ Item {
   }
 
   function finishListing() {
-    if (_listExitCode === -999 || !_listStdoutDone || !_listStderrDone) return
+    if (_listExitCode === -999) return
     listWatchdog.stop()
     refreshing = false
 
@@ -123,6 +117,14 @@ Item {
     if (rerun) Qt.callLater(root.refresh)
   }
 
+  function finishListingFailedToStart() {
+    if (!refreshing || _listExitCode !== -999) return
+    listWatchdog.stop()
+    _listError = "Docker CLI could not be started."
+    _listExitCode = 127
+    finishListing()
+  }
+
   function supportsAction(action, container) {
     return container && container.id && Model.actionAllowed(action, container.state)
   }
@@ -144,8 +146,6 @@ Item {
     lastErrorKind = ""
     _actionError = ""
     _actionExitCode = -999
-    _actionStdoutDone = false
-    _actionStderrDone = false
     _actionTimedOut = false
     actionProcess.command = ["docker", "--context", _actionContext, action, container.id]
     actionProcess.running = true
@@ -154,7 +154,7 @@ Item {
   }
 
   function finishAction() {
-    if (_actionExitCode === -999 || !_actionStdoutDone || !_actionStderrDone) return
+    if (_actionExitCode === -999) return
     actionWatchdog.stop()
     acting = false
     activeActionId = ""
@@ -178,6 +178,14 @@ Item {
     Qt.callLater(function() { root.refresh(actionFailed) })
   }
 
+  function finishActionFailedToStart() {
+    if (!acting || _actionExitCode !== -999) return
+    actionWatchdog.stop()
+    _actionError = "Docker CLI could not be started."
+    _actionExitCode = 127
+    finishAction()
+  }
+
   function start(container) { return runAction("start", container) }
   function stop(container) { return runAction("stop", container) }
   function restart(container) { return runAction("restart", container) }
@@ -198,53 +206,45 @@ Item {
         root.lastError = "Docker CLI is not installed or is not on PATH."
       }
     }
+    onRunningChanged: if (!running && root.refreshing && !root.installationChecked) {
+      root.installationChecked = true
+      root.installed = false
+      root.refreshing = false
+      root.accessible = false
+      root.lastErrorKind = "missing"
+      root.lastError = "Docker CLI detection could not be started."
+    }
   }
 
   Process {
     id: listProcess
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        root._listOutput = text
-        root._listStdoutDone = true
-        root.finishListing()
-      }
+      onStreamFinished: root._listOutput = text
     }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        root._listError = String(text || "").trim()
-        root._listStderrDone = true
-        root.finishListing()
-      }
+      onStreamFinished: root._listError = String(text || "").trim()
     }
     onExited: function(exitCode) {
       root._listExitCode = exitCode
       root.finishListing()
     }
+    onRunningChanged: if (!running) root.finishListingFailedToStart()
   }
 
   Process {
     id: actionProcess
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        root._actionStdoutDone = true
-        root.finishAction()
-      }
-    }
+    stdout: StdioCollector { waitForEnd: true }
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        root._actionError = String(text || "").trim()
-        root._actionStderrDone = true
-        root.finishAction()
-      }
+      onStreamFinished: root._actionError = String(text || "").trim()
     }
     onExited: function(exitCode) {
       root._actionExitCode = exitCode
       root.finishAction()
     }
+    onRunningChanged: if (!running) root.finishActionFailedToStart()
   }
 
   Timer {
@@ -253,7 +253,7 @@ Item {
     repeat: false
     onTriggered: {
       root._listTimedOut = true
-      if (listProcess.running) listProcess.running = false
+      if (listProcess.running) listProcess.signal(9)
     }
   }
 
@@ -263,7 +263,7 @@ Item {
     repeat: false
     onTriggered: {
       root._actionTimedOut = true
-      if (actionProcess.running) actionProcess.running = false
+      if (actionProcess.running) actionProcess.signal(9)
     }
   }
 

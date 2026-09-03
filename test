@@ -24,6 +24,11 @@ rg -q 'onDockerContextChanged' "$PLUGIN_DIR/Service.qml" || {
   exit 1
 }
 
+[[ $(rg -c 'onRunningChanged' "$PLUGIN_DIR/Service.qml") -ge 3 ]] || {
+  echo "FAIL: every Docker process path must handle FailedToStart" >&2
+  exit 1
+}
+
 QMLTESTRUNNER=/usr/lib/qt6/bin/qmltestrunner
 [[ -x "$QMLTESTRUNNER" ]] || QMLTESTRUNNER=qmltestrunner
 env -u QT_QPA_PLATFORMTHEME "$QMLTESTRUNNER" -platform offscreen -input "$PLUGIN_DIR/tests"

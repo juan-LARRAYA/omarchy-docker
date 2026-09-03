@@ -56,12 +56,13 @@ TestCase {
       { state: "exited" },
       { state: "dead" },
       { state: "paused" },
-      { state: "restarting" }
+      { state: "restarting" },
+      { state: "removing" }
     ])
-    compare(summary.total, 5)
+    compare(summary.total, 6)
     compare(summary.running, 1)
     compare(summary.stopped, 2)
-    compare(summary.other, 2)
+    compare(summary.other, 3)
   }
 
   function test_actionPolicy() {
@@ -73,6 +74,10 @@ TestCase {
     verify(!Model.actionAllowed("stop", "paused"))
     verify(Model.actionAllowed("restart", "running"))
     verify(!Model.actionAllowed("restart", "exited"))
+    verify(!Model.actionAllowed("restart", "restarting"))
+    verify(!Model.actionAllowed("start", "paused"))
+    verify(!Model.actionAllowed("start", "removing"))
+    verify(!Model.actionAllowed("start", "dead"))
     verify(!Model.actionAllowed("remove", "exited"))
   }
 
