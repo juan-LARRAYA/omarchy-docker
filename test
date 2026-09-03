@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -euo pipefail
+
+PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+jq empty "$PLUGIN_DIR/manifest.json"
+omarchy plugin validate "$PLUGIN_DIR"
+qmllint -I /usr/share/omarchy/shell \
+  "$PLUGIN_DIR/DockerIcon.qml" \
+  "$PLUGIN_DIR/Service.qml" \
+  "$PLUGIN_DIR/Panel.qml"
+
+echo "Docker widget checks passed"

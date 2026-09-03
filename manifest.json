@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "id": "juan.docker",
+  "name": "Docker",
+  "version": "0.1.0",
+  "author": "Juan",
+  "license": "MIT",
+  "description": "Native Docker container status and controls for the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Docker",
+    "description": "See, start, stop, and restart containers and open your preferred container UI.",
+    "category": "System",
+    "aliases": [
+      "containers",
+      "docker"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 10,
+      "dockerContext": "default",
+      "containerUi": "Portainer",
+      "portainerUrl": "https://localhost:9443",
+      "dockgeUrl": "http://localhost:5001",
+      "customUiUrl": ""
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 5,
+        "max": 3600,
+        "step": 5,
+        "defaultValue": 10
+      },
+      {
+        "key": "dockerContext",
+        "type": "string",
+        "label": "Docker context",
+        "defaultValue": "default",
+        "description": "Docker CLI context to monitor, such as default or rootless."
+      },
+      {
+        "key": "containerUi",
+        "type": "enum",
+        "label": "Container UI",
+        "options": [
+          "Portainer",
+          "Dockge",
+          "Custom",
+          "None"
+        ],
+        "defaultValue": "Portainer"
+      },
+      {
+        "key": "portainerUrl",
+        "type": "string",
+        "label": "Portainer URL",
+        "defaultValue": "https://localhost:9443"
+      },
+      {
+        "key": "dockgeUrl",
+        "type": "string",
+        "label": "Dockge URL",
+        "defaultValue": "http://localhost:5001"
+      },
+      {
+        "key": "customUiUrl",
+        "type": "string",
+        "label": "Custom UI URL",
+        "defaultValue": ""
+      }
+    ]
+  }
+}
