@@ -29,8 +29,20 @@ rg -q 'onDockerContextChanged' "$PLUGIN_DIR/Service.qml" || {
   exit 1
 }
 
+rg -q 'id: whichWatchdog' "$PLUGIN_DIR/Service.qml" || {
+  echo "FAIL: Docker CLI detection must have a watchdog" >&2
+  exit 1
+}
+
 QMLTESTRUNNER=/usr/lib/qt6/bin/qmltestrunner
-[[ -x "$QMLTESTRUNNER" ]] || QMLTESTRUNNER=qmltestrunner
-env -u QT_QPA_PLATFORMTHEME "$QMLTESTRUNNER" -platform offscreen -input "$PLUGIN_DIR/tests"
+[[ -x "$QMLTESTRUNNER" ]] || {
+  echo "FAIL: Qt 6 qmltestrunner not found at $QMLTESTRUNNER" >&2
+  exit 1
+}
+env -u DISPLAY -u WAYLAND_DISPLAY \
+  QT_QPA_PLATFORM=offscreen \
+  QT_QPA_PLATFORMTHEME= \
+  QT_STYLE_OVERRIDE= \
+  "$QMLTESTRUNNER" -input "$PLUGIN_DIR/tests"
 
 echo "Docker widget checks passed"

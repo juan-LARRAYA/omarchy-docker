@@ -32,6 +32,7 @@ Item {
   property int _listExitCode: -999
   property bool _listTimedOut: false
   property bool _listPreserveActionError: false
+  property bool _whichTimedOut: false
 
   property string _actionName: ""
   property string _actionContainerName: ""
@@ -54,6 +55,8 @@ Item {
     }
     if (!installationChecked) {
       refreshing = true
+      _whichTimedOut = false
+      whichWatchdog.restart()
       whichProcess.running = true
       return
     }
@@ -87,11 +90,14 @@ Item {
     refreshing = false
 
     var contextChanged = dockerContext !== _listContext
-    if (_listTimedOut) {
+    if (contextChanged) {
+      // The result belongs to a context that is no longer selected. Do not
+      // flash its status or error under the new context while the rerun starts.
+    } else if (_listTimedOut) {
       accessible = false
       lastErrorKind = "timeout"
       lastError = "Docker did not respond within 8 seconds."
-    } else if (_listExitCode === 0 && !contextChanged) {
+    } else if (_listExitCode === 0) {
       var parsed = Model.parseListing(_listOutput)
       if (parsed.ok) {
         accessible = true
@@ -106,7 +112,7 @@ Item {
         lastError = parsed.error
         lastErrorKind = "parse"
       }
-    } else if (_listExitCode !== 0 && !contextChanged) {
+    } else if (_listExitCode !== 0) {
       accessible = false
       lastErrorKind = _listError.toLowerCase().indexOf("permission denied") !== -1 ? "permission" : "connection"
       lastError = Model.friendlyError(_listError, "Cannot connect to the Docker daemon.", _listContext)
@@ -159,6 +165,16 @@ Item {
     acting = false
     activeActionId = ""
 
+    var contextChanged = dockerContext !== _actionContext
+    if (contextChanged) {
+      actionStatus = ""
+      lastError = ""
+      lastErrorKind = ""
+      pendingRefresh = false
+      Qt.callLater(function() { root.refresh(false) })
+      return
+    }
+
     var actionFailed = _actionTimedOut || _actionExitCode !== 0
     if (_actionTimedOut) {
       actionStatus = ""
@@ -196,9 +212,17 @@ Item {
     stdout: StdioCollector { waitForEnd: true }
     stderr: StdioCollector { waitForEnd: true }
     onExited: function(exitCode) {
+      whichWatchdog.stop()
       root.installationChecked = true
       root.installed = exitCode === 0
-      if (root.installed) Qt.callLater(root.refresh)
+      root.pendingRefresh = false
+      if (root._whichTimedOut) {
+        root.installed = false
+        root.refreshing = false
+        root.accessible = false
+        root.lastErrorKind = "timeout"
+        root.lastError = "Docker CLI detection did not respond within 3 seconds."
+      } else if (root.installed) Qt.callLater(root.refresh)
       else {
         root.refreshing = false
         root.accessible = false
@@ -207,10 +231,12 @@ Item {
       }
     }
     onRunningChanged: if (!running && root.refreshing && !root.installationChecked) {
+      whichWatchdog.stop()
       root.installationChecked = true
       root.installed = false
       root.refreshing = false
       root.accessible = false
+      root.pendingRefresh = false
       root.lastErrorKind = "missing"
       root.lastError = "Docker CLI detection could not be started."
     }
@@ -245,6 +271,16 @@ Item {
       root.finishAction()
     }
     onRunningChanged: if (!running) root.finishActionFailedToStart()
+  }
+
+  Timer {
+    id: whichWatchdog
+    interval: 3000
+    repeat: false
+    onTriggered: {
+      root._whichTimedOut = true
+      if (whichProcess.running) whichProcess.signal(9)
+    }
   }
 
   Timer {
