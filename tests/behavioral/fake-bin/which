@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if [[ ${DOCKER_SERVICE_TEST_CASE:-} == "which-timeout" ]]; then
+  exec /usr/bin/sleep 60
+fi
+
+exec /usr/bin/which "$@"

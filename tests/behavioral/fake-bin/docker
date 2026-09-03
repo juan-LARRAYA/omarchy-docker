@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -euo pipefail
+
+context=default
+if [[ ${1:-} == "--context" ]]; then
+  context=${2:-default}
+  shift 2
+fi
+
+operation=${1:-}
+if [[ $operation == "ps" ]]; then
+  case "$context" in
+    disappear)
+      printf '%s\n' '{"ID":"gone1","Names":"vanishing-fixture","Image":"fixture:latest","State":"running","Status":"Up","Ports":""}'
+      /usr/bin/rm -- "$0"
+      ;;
+    hang)
+      exec /usr/bin/sleep 60
+      ;;
+    stderr)
+      printf '%s\n' 'fixture-specific stderr' >&2
+      exit 42
+      ;;
+    A)
+      printf '%s\n' '{"ID":"action1","Names":"context-a","Image":"fixture:latest","State":"exited","Status":"Exited","Ports":""}'
+      ;;
+    B)
+      printf '%s\n' '{"ID":"fresh-b","Names":"context-b","Image":"fixture:latest","State":"running","Status":"Up","Ports":""}'
+      ;;
+    *)
+      printf 'unexpected fixture context: %s\n' "$context" >&2
+      exit 64
+      ;;
+  esac
+  exit 0
+fi
+
+if [[ $context == "A" && $operation == "start" ]]; then
+  /usr/bin/sleep 0.4
+  printf '%s\n' 'stale action failure from context A' >&2
+  exit 43
+fi
+
+printf 'unexpected fixture operation: %s\n' "$operation" >&2
+exit 64

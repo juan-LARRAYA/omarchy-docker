@@ -45,4 +45,6 @@ env -u DISPLAY -u WAYLAND_DISPLAY \
   QT_STYLE_OVERRIDE= \
   "$QMLTESTRUNNER" -input "$PLUGIN_DIR/tests"
 
+"$PLUGIN_DIR/test-behavioral"
+
 echo "Docker widget checks passed"

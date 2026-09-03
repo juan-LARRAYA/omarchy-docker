@@ -43,6 +43,7 @@ omarchy plugin enable juan.docker --section right
 
 ```bash
 ./test                       # schema, QML lint, and unit tests
+./test-behavioral            # headless Quickshell process/race tests
 ./test-integration default   # read-only check against a real Docker context
 ```
 

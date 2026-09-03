@@ -1,0 +1,51 @@
+#!/bin/bash
+
+set -euo pipefail
+
+plugin_dir=$(cd "$(dirname "$0")" && pwd)
+fixture_dir="$plugin_dir/tests/behavioral"
+
+run_case() {
+  local case_name=$1
+  local work
+  local output
+  local status
+
+  work=$(mktemp -d)
+  mkdir "$work/bin" "$work/config" "$work/runtime"
+  chmod 700 "$work/runtime"
+  cp "$fixture_dir/fake-bin/docker" "$work/bin/docker"
+  cp "$fixture_dir/fake-bin/which" "$work/bin/which"
+  cp "$plugin_dir/Model.js" "$plugin_dir/Service.qml" "$work/config/"
+  cp "$fixture_dir/shell.qml" "$work/config/shell.qml"
+  chmod +x "$work/bin/docker" "$work/bin/which"
+
+  set +e
+  output=$(env -u DISPLAY -u WAYLAND_DISPLAY -u QT_QPA_PLATFORMTHEME \
+    PATH="$work/bin" \
+    QT_QPA_PLATFORM=offscreen \
+    QT_STYLE_OVERRIDE= \
+    XDG_RUNTIME_DIR="$work/runtime" \
+    DOCKER_SERVICE_TEST_CASE="$case_name" \
+    /usr/bin/timeout --signal=TERM 12s \
+    /usr/bin/quickshell --no-color --path "$work/config/shell.qml" 2>&1)
+  status=$?
+  set -e
+  rm -rf -- "$work"
+
+  printf '%s\n' "$output"
+  if [[ $output != *"DOCKER-TEST-PASS: $case_name"* ]]; then
+    echo "FAIL: $case_name produced no pass marker (quickshell status $status)" >&2
+    return 1
+  fi
+  if [[ $output == *"DOCKER-TEST-FAIL:"* ]]; then
+    echo "FAIL: $case_name emitted a failure marker" >&2
+    return 1
+  fi
+}
+
+for case_name in collector-order failed-to-start timeout which-timeout action-context-switch; do
+  run_case "$case_name"
+done
+
+echo "Docker service behavioral checks passed"
