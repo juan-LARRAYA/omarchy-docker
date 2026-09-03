@@ -13,7 +13,7 @@ Panel {
   ipcTarget: "juan.docker"
   manageIpc: false
 
-  implicitWidth: Style.space(76)
+  implicitWidth: Style.bar.iconSlot
   implicitHeight: bar ? bar.barSize : Style.bar.sizeHorizontal
 
   property int containerIndex: 0
@@ -105,14 +105,23 @@ Panel {
     }
   }
 
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰡨  Docker"
-    foreground: "#2496ed"
-    fontSize: Style.font.caption
-    horizontalMargin: 7
+    opticalSize: Style.space(22)
+    iconComponent: Component {
+      Item {
+        DockerIcon {
+          anchors.centerIn: parent
+          iconSize: Style.space(21)
+          backdropVisible: false
+          color: "#2496ed"
+          badgeColor: root.urgent
+          warning: service.lastError !== ""
+        }
+      }
+    }
     tooltipText: "Docker containers"
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.MiddleButton) service.refresh()

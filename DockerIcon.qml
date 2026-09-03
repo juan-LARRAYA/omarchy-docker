@@ -9,6 +9,7 @@ Item {
   property color badgeColor: Color.urgent
   property int runningCount: 0
   property bool warning: false
+  property bool backdropVisible: true
 
   implicitWidth: iconSize
   implicitHeight: iconSize
@@ -16,6 +17,7 @@ Item {
   height: iconSize
 
   Rectangle {
+    visible: root.backdropVisible
     anchors.centerIn: parent
     width: root.iconSize + Style.space(5)
     height: root.iconSize + Style.space(3)
