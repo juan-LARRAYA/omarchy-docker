@@ -137,10 +137,28 @@ function normalizedUrlHost(value) {
     for (var i = 0; i < octets.length; i++) if (Number(octets[i]) > 255) return ""
     return host
   }
-  if (/^[0-9a-f:]+$/i.test(host) && host.indexOf(":") !== -1) return "[" + host + "]"
+  if (validIpv6(host)) return "[" + host + "]"
   if (/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(host))
     return host
   return ""
+}
+
+function validIpv6(value) {
+  var host = String(value || "")
+  if (!/^[0-9a-f:]+$/i.test(host) || host.indexOf(":") === -1) return false
+  if ((host.match(/::/g) || []).length > 1) return false
+  var compressed = host.indexOf("::") !== -1
+  var sides = compressed ? host.split("::") : [host]
+  var groups = []
+  for (var sideIndex = 0; sideIndex < sides.length; sideIndex++) {
+    if (sides[sideIndex] === "") continue
+    var sideGroups = sides[sideIndex].split(":")
+    for (var groupIndex = 0; groupIndex < sideGroups.length; groupIndex++) {
+      if (!/^[0-9a-f]{1,4}$/i.test(sideGroups[groupIndex])) return false
+      groups.push(sideGroups[groupIndex])
+    }
+  }
+  return compressed ? groups.length < 8 : groups.length === 8
 }
 
 function serviceUrls(value, wildcardHost) {

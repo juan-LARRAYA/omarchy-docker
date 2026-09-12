@@ -134,6 +134,8 @@ TestCase {
     compare(Model.serviceUrls("bad/path:8080->80/tcp", "localhost"), [])
     compare(Model.serviceUrls("999.1.1.1:8080->80/tcp", "localhost"), [])
     compare(Model.serviceUrls("0.0.0.0:8080->80/tcp", "bad/path"), [])
+    compare(Model.serviceUrls("[::::]:8080->80/tcp", "localhost"), [])
+    compare(Model.serviceUrls("[1:2:3:4:5:6:7:8:9]:8080->80/tcp", "localhost"), [])
   }
 
   function test_preservesSpecificHostsAndRequiresWildcardFallback() {

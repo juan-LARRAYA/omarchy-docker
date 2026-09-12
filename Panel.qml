@@ -487,7 +487,7 @@ Panel {
       PanelActionButton {
         visible: row.serviceUrls.length > 0
         iconText: "󰖟"
-        tooltipText: row.serviceUrls.length > 1 ? "Open first published service" : "Open published service"
+        tooltipText: row.serviceUrls.length > 0 ? "Open " + row.serviceUrls[0] : "Open published service"
         foreground: root.foreground
         fontFamily: root.fontFamily
         onClicked: root.openContainerUrls(row.container)
