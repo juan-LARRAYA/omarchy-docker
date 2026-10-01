@@ -226,6 +226,7 @@ Panel {
             visible: service.lastError !== "" || service.actionStatus !== ""
             width: parent.width
             text: service.actionStatus !== "" ? service.actionStatus : service.lastError
+            textFormat: Text.PlainText
             color: service.lastError !== "" ? root.urgent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -466,6 +467,7 @@ Panel {
         Text {
           width: parent.width
           text: row.container ? row.container.name : "Unknown"
+          textFormat: Text.PlainText
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -477,6 +479,7 @@ Panel {
           text: row.container
             ? [row.container.image, row.container.status].filter(function(v) { return v !== "" }).join(" · ")
             : ""
+          textFormat: Text.PlainText
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
