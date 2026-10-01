@@ -34,6 +34,11 @@ rg -q 'id: whichWatchdog' "$PLUGIN_DIR/Service.qml" || {
   exit 1
 }
 
+[[ $(rg -c 'textFormat: Text.PlainText' "$PLUGIN_DIR/Panel.qml") -ge 3 ]] || {
+  echo "FAIL: text showing Docker-reported strings (errors, container name, image, status) must force Text.PlainText so a malicious or compromised daemon cannot smuggle rich text (e.g. an <img> tag) into the panel" >&2
+  exit 1
+}
+
 QMLTESTRUNNER=/usr/lib/qt6/bin/qmltestrunner
 [[ -x "$QMLTESTRUNNER" ]] || {
   echo "FAIL: Qt 6 qmltestrunner not found at $QMLTESTRUNNER" >&2
