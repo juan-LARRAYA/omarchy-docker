@@ -52,4 +52,9 @@ env -u DISPLAY -u WAYLAND_DISPLAY \
 
 "$PLUGIN_DIR/test-behavioral"
 
+rg -q 'id: pollTimer' "$PLUGIN_DIR/Service.qml" || {
+  echo "FAIL: the service must poll so the widget stays in sync with Docker" >&2
+  exit 1
+}
+
 echo "Docker widget checks passed"

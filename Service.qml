@@ -303,6 +303,18 @@ Item {
     }
   }
 
+  // Keep the bar and an open panel in sync with containers changed outside
+  // the widget (CLI, Portainer, other tools).
+  Timer {
+    id: pollTimer
+    interval: 10000
+    repeat: true
+    running: root.installed
+    onTriggered: {
+      if (!root.acting && !root.refreshing) root.refresh(true)
+    }
+  }
+
   Timer {
     id: actionStatusClear
     interval: 2500
