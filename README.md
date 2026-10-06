@@ -1,6 +1,6 @@
 # Docker widget for Omarchy
 
-![Docker panel open, showing running and stopped containers with their controls (sample data)](screenshot.png)
+![Docker panel open, showing running and stopped containers with their controls](screenshot.png)
 
 A native-looking Omarchy bar widget for monitoring and controlling Docker
 containers.
