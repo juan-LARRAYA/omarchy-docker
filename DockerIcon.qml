@@ -11,10 +11,8 @@ Item {
   property bool warning: false
   property bool backdropVisible: true
 
-  implicitWidth: iconSize
-  implicitHeight: iconSize
-  width: iconSize
-  height: iconSize
+  implicitWidth: backdropVisible ? iconSize + Style.space(5) : iconSize
+  implicitHeight: backdropVisible ? iconSize + Style.space(3) : iconSize
 
   Rectangle {
     visible: root.backdropVisible
