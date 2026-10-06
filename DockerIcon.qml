@@ -30,13 +30,14 @@ Item {
   Image {
     id: dockerImage
     anchors.centerIn: parent
-    width: root.iconSize
-    height: root.iconSize
+    width: Math.round(root.iconSize * 0.86)
+    height: Math.round(root.iconSize * 0.86)
     source: "file:///usr/share/icons/hicolor/48x48/apps/docker.png"
     sourceSize.width: Math.max(48, root.iconSize * 3)
     sourceSize.height: Math.max(48, root.iconSize * 3)
     fillMode: Image.PreserveAspectFit
     smooth: true
+    mipmap: true
   }
 
   Text {
