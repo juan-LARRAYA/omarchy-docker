@@ -11,8 +11,10 @@ Item {
   property bool warning: false
   property bool backdropVisible: true
 
-  implicitWidth: backdropVisible ? iconSize + Style.space(5) : iconSize
-  implicitHeight: backdropVisible ? iconSize + Style.space(3) : iconSize
+  // Reserve a few px around the backdrop: hosts clip at the item bounds.
+  readonly property real bleed: backdropVisible ? Style.space(4) : 0
+  implicitWidth: backdropVisible ? iconSize + Style.space(5) + 2 * bleed : iconSize
+  implicitHeight: backdropVisible ? iconSize + Style.space(3) + 2 * bleed : iconSize
 
   Rectangle {
     visible: root.backdropVisible
